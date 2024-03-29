@@ -95,7 +95,15 @@ def file_parse(file_name: str):
         return (router_id, input_ports, outputs)
 
     else:
-        print("router_id, input_ports, and outputs are all required parameters")
+        missing_params = []
+        if router_id == None:
+            missing_params.append("router-id")
+        if not input_ports:
+            missing_params.append("input-ports")
+        if not outputs:
+            missing_params.append("outputs")
+        
+        print("Missing params: {}".format(missing_params))
         exit()
 
 
