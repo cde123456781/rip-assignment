@@ -1,0 +1,3 @@
+router-id 3
+input-ports 5008, 5009
+outputs 5007-3-2, 5010-4-4

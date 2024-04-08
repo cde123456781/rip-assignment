@@ -2,6 +2,7 @@ import sys
 import os
 import socket
 
+
 def file_parse(file_name: str):
     """Parses the file provided to extract router_id, input_ports, and outputs"""
     router_id = None
@@ -22,7 +23,7 @@ def file_parse(file_name: str):
         if "router-id" in line:
             # Eg. Parsing: router-id 1
             router_id = line.split()[1]
-            if (! router_id.isnumeric()):
+            if (not router_id.isnumeric()):
                 print("router-id in the config was not an integer")
                 exit()
             else:
@@ -117,6 +118,22 @@ def socket_bind(input_ports):
 
     return sockets
 
+# def main_loop():
+#     while True:
+
+def create_packet():
+    output_packet = bytearray()
+
+    output_packet.append(2)
+    output_packet.append(2)
+    output_packet.append(0)
+    output_packet.append(0)
+
+    return output_packet
+
+# def routing_table():
+
+
 
 
 
@@ -128,9 +145,10 @@ def main():
     else:
         file_name = sys.argv[1]
         router_id, input_ports, outputs = file_parse(file_name)
-
-    sockets = socket_bind(input_ports)
-
+        sockets = socket_bind(input_ports)
+        print(router_id, input_ports, outputs)
+        # main_loop()
+        print(create_packet())
 
 
 
