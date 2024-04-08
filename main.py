@@ -1,5 +1,6 @@
 import sys
 import os
+import socket
 
 def file_parse(file_name: str):
     """Parses the file provided to extract router_id, input_ports, and outputs"""
@@ -106,6 +107,15 @@ def file_parse(file_name: str):
         print("Missing params: {}".format(missing_params))
         exit()
 
+def socket_bind(input_ports):
+    sockets = []
+
+    for i in input_ports:
+        current_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        current_socket.bind(('127.0.0.1', i))
+        sockets.append(current_socket)
+
+    return sockets
 
 
 
@@ -119,6 +129,7 @@ def main():
         file_name = sys.argv[1]
         router_id, input_ports, outputs = file_parse(file_name)
 
+    sockets = socket_bind(input_ports)
 
 
 
