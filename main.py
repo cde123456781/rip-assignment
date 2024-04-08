@@ -133,7 +133,43 @@ def create_packet():
 
 # def routing_table():
 
-
+def packet_parsing(input_packet):
+    rip_entries = []
+    try:
+        if input_packet[0] == 2 and input_packet[1] == 2 and input_packet[2] == 0 and input_packet[3] == 0:
+            packet_len = len(input_packet)
+            if (packet_len-4)%20 == 0:
+                for i in range((packet_len-4)/20):
+                    if input_packet[(20*i)+4] == 0 and input_packet[(20*i)+5] == 2:
+                        if input_packet[(20*i)+6] == 0 and input_packet[(20*i)+7] == 0:
+                            router_id = input_packet[(20*i)+8] << 24 + input_packet[(20*i)+9] << 16 + input_packet[(20*i)+10] << 8 + input_packet[(20*i)+11]
+                            if router_id <= 64000 or router_id >= 1:
+                                if input_packet[(20*i)+12] == 0 and input_packet[(20*i)+13] == 0 and input_packet[(20*i)+14] == 0 and input_packet[(20*i)+15] == 0:
+                                    if input_packet[(20*i)+16] == 0 and input_packet[(20*i)+17] == 0 and input_packet[(20*i)+18] == 0 and input_packet[(20*i)+19] == 0:
+                                        metric = input_packet[(20*i)+20] << 24 + input_packet[(20*i)+21] << 16 + input_packet[(20*i)+22] << 8 + input_packet[(20*i)+23]
+                                        if metric > 0:
+                                            if metric > 16: 
+                                                metric = 16
+                                            rip_entries.append([router_id, metric])
+                                        else:
+                                            return None
+                                    else:
+                                        return None
+                                else:
+                                    return None
+                            else:
+                                return None
+                        else:
+                            return None
+                    else: 
+                        return None 
+                return rip_entries
+            else:      
+                return None
+        else:
+            return None
+    except: 
+        return None
 
 
 
