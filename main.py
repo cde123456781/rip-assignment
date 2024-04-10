@@ -1,3 +1,8 @@
+"""
+Title: Rip Assignment 2024
+Author: Byrson Chen (ID) Luke Morimoto (33883343)
+Date: 22/04/2024
+"""
 import sys
 import os
 import socket
@@ -131,7 +136,11 @@ def create_packet():
 
     return output_packet
 
-# def routing_table():
+# def update_routing_table():
+#     return routing_table
+
+# def bellmanford():
+
 
 def packet_parsing(input_packet):
     rip_entries = []
