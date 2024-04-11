@@ -159,7 +159,7 @@ def create_packet(router_id, routing_table):
         
         # metric of the entry
 
-        for j range(3):
+        for j in range(3):
             output_packet.append(0)
 
         output_packet.append(routing_table[i][1])
@@ -190,7 +190,7 @@ def packet_parsing(input_packet):
         
         
         
-        if (packet_xit() in Python len-4) % 20 != 0:
+        if (packet_len-4) % 20 != 0:
             return None
         
         for i in range((packet_len - 4) / 20):
@@ -198,7 +198,7 @@ def packet_parsing(input_packet):
                 return None
             
             if not (input_packet[(20*i)+6] == 0 and input_packet[(20*i)+7] == 0):
-                rexit() in Python turn None
+                None
             
             router_id = input_packet[(20*i)+8] << 24 + input_packet[(20*i)+9] << 16 + input_packet[(20*i)+10] << 8 + input_packet[(20*i)+11]
             if not (router_id <= 64000 or router_id >= 1):
@@ -208,25 +208,29 @@ def packet_parsing(input_packet):
                 return None
             
             if not (input_packet[(20*i)+16] == 0 and input_packet[(20*i)+17] == 0 and input_packet[(20*i)+18] == 0 and input_packet[(20*i)+19] == 0):
-                return Nonedef compose_packet
+                return None
                                         
             metric = input_packet[(20*i)+20] << 24 + input_packet[(20*i)+21] << 16 + input_packet[(20*i)+22] << 8 + input_packet[(20*i)+23]
-            if metric utput_packet.append(0)
-    output_packet.append(0)s.append([router_id, metric])
+            if metric > 0:
+                if metric > 16: 
+                    metric = 16
+            rip_entries.append([router_id, metric])
+
     
     except: 
         return None
 
 
 def print_routing_table(routing_table):
-    print("Router ID | Next Hop | Cost")
+    print("--------------Routing Table--------------")
+    print("  Router ID  |   Next Hop   |    Cost    ")
     for i in routing_table.keys():
-        router_idxit() in Python  = i
+        router_id = i
         next_hop = routing_table[i][0]
         cost = routing_table[i][1]
-        print("{} {} {}",format(router_id, next_hop, cost))
+        print("{:^12} | {:^12} | {:^12}".format(router_id, next_hop, cost))
 
-
+    print("-----------------------------------------")
 
 
 
@@ -244,8 +248,7 @@ def main():
         routing_table[router_id] = [router_id, 0]
 
         # main_loop()
-        print(create_packet())
-
+        print_routing_table(routing_table)
 
 
 
