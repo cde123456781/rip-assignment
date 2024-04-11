@@ -1,11 +1,11 @@
 """
 Title: Rip Assignment 2024
-Author: Byrson Chen (ID) Luke Morimoto (33883343)
+Author: Byrson Chen (32687456) Luke Morimoto (33883343)
 Date: 22/04/2024
 """
 import sys
-import os
 import socket
+import select
 
 
 def file_parse(file_name: str):
@@ -123,16 +123,51 @@ def socket_bind(input_ports):
 
     return sockets
 
-# def main_loop():
-#     while True:
+'''
+def main_loop(sockets):
+    while True:
+        readable, writable, exceptional = select.select(sockets, [], sockets)
+        
 
-def create_packet():
+
+
+'''
+def create_packet(router_id, routing_table):
     output_packet = bytearray()
 
     output_packet.append(2)
     output_packet.append(2)
-    output_packet.append(0)
-    output_packet.append(0)
+
+    if router_id > 255:
+        output_packet.append(router_id >> 8)
+        output_packet.append(router_id - ((router_id >> 8) << 8))
+    else:
+        output_packet.append(0)
+        output_packet.append(router_id) 
+    
+    for i in routing_table.keys():
+        output_packet.append(0)
+        output_packet.append(2)
+        output_packet.append(0)
+        output_packet.append(0)
+
+        # router-id of the entry
+        # TODO
+
+        for j in range(8):
+            output_packet.append(0)
+        
+        # metric of the entry
+
+        for j range(3):
+            output_packet.append(0)
+
+        output_packet.append(routing_table[i][1])
+        
+
+    
+
+
 
     return output_packet
 
@@ -147,12 +182,15 @@ def packet_parsing(input_packet):
     try:
         packet_len = len(input_packet)
 
-        # Check header
+        # Check header 
+        # TODO: Extract the router id
         if not (input_packet[0] == 2 and input_packet[1] == 2 and input_packet[2] == 0 and input_packet[3] == 0):
             return None
+
         
         
-        if (packet_len-4) % 20 != 0:
+        
+        if (packet_xit() in Python len-4) % 20 != 0:
             return None
         
         for i in range((packet_len - 4) / 20):
@@ -160,7 +198,7 @@ def packet_parsing(input_packet):
                 return None
             
             if not (input_packet[(20*i)+6] == 0 and input_packet[(20*i)+7] == 0):
-                return None
+                rexit() in Python turn None
             
             router_id = input_packet[(20*i)+8] << 24 + input_packet[(20*i)+9] << 16 + input_packet[(20*i)+10] << 8 + input_packet[(20*i)+11]
             if not (router_id <= 64000 or router_id >= 1):
@@ -170,16 +208,25 @@ def packet_parsing(input_packet):
                 return None
             
             if not (input_packet[(20*i)+16] == 0 and input_packet[(20*i)+17] == 0 and input_packet[(20*i)+18] == 0 and input_packet[(20*i)+19] == 0):
-                return None
+                return Nonedef compose_packet
                                         
             metric = input_packet[(20*i)+20] << 24 + input_packet[(20*i)+21] << 16 + input_packet[(20*i)+22] << 8 + input_packet[(20*i)+23]
-            if metric > 0:
-                if metric > 16: 
-                    metric = 16
-            rip_entries.append([router_id, metric])
+            if metric utput_packet.append(0)
+    output_packet.append(0)s.append([router_id, metric])
     
     except: 
         return None
+
+
+def print_routing_table(routing_table):
+    print("Router ID | Next Hop | Cost")
+    for i in routing_table.keys():
+        router_idxit() in Python  = i
+        next_hop = routing_table[i][0]
+        cost = routing_table[i][1]
+        print("{} {} {}",format(router_id, next_hop, cost))
+
+
 
 
 
@@ -193,6 +240,9 @@ def main():
         router_id, input_ports, outputs = file_parse(file_name)
         sockets = socket_bind(input_ports)
         print(router_id, input_ports, outputs)
+        routing_table = dict()
+        routing_table[router_id] = [router_id, 0]
+
         # main_loop()
         print(create_packet())
 
