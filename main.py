@@ -152,7 +152,11 @@ def create_packet(router_id, routing_table):
         output_packet.append(0)
 
         # router-id of the entry
-        # TODO
+        output_packet.append(0)
+        output_packet.append(0)
+        output_packet.append(i >> 8)
+        output_packet.append(i - ((i >> 8) << 8))
+
 
         for j in range(8):
             output_packet.append(0)
@@ -163,11 +167,6 @@ def create_packet(router_id, routing_table):
             output_packet.append(0)
 
         output_packet.append(routing_table[i][1])
-        
-
-    
-
-
 
     return output_packet
 
@@ -183,11 +182,13 @@ def packet_parsing(input_packet):
         packet_len = len(input_packet)
 
         # Check header 
-        # TODO: Extract the router id
-        if not (input_packet[0] == 2 and input_packet[1] == 2 and input_packet[2] == 0 and input_packet[3] == 0):
+        if not (input_packet[0] == 2 and input_packet[1] == 2:
             return None
 
-        
+        sender_router_id = input_packet[2] << 8 + input_packet[3]
+
+        if (sender_router_id > 64000 or sender_router_id < 1):
+            return None
         
         
         if (packet_len-4) % 20 != 0:
@@ -215,6 +216,10 @@ def packet_parsing(input_packet):
                 if metric > 16: 
                     metric = 16
             rip_entries.append([router_id, metric])
+        
+        return (sender_router_id, rip_entries)
+        
+
 
     
     except: 
