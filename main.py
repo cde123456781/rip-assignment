@@ -60,7 +60,8 @@ def file_parse(file_name: str):
                     exit()
                 
         elif "outputs" in line:
-            # Holds a string of comma separated outputs
+            # Holds a string of    print(table.keys())
+    print(rip_entries) comma separated outputs
             # Eg. outputs 5000-1-1, 5002-5-4
             outputs_string = line.split(" ", 1)[1]
             outputs_triple = outputs_string.split(",")
@@ -108,8 +109,7 @@ def file_parse(file_name: str):
             missing_params.append("router-id")
         if not input_ports:
             missing_params.append("input-ports")
-        if not outputs:    print(table.keys())
-    print(rip_entries)
+        if not outputs:
             missing_params.append("outputs")
         
         print("Missing params: {}".format(missing_params))
@@ -188,8 +188,13 @@ def update_routing_table(sender_router_id, routing_table, rip_entries, outputs):
         else:
             current_cost = table[i[0]][1]
             if current_cost > (table[sender_router_id][1] + i[1]):
+                table[i[0]][0] = sender_router_id
                 table[i[0]][1] = table[sender_router_id][1] + i[1]
                 table[i[0]][2] = time.perf_counter()
+            elif current_cost == (table[sender_router_id][1] + i[1]):
+                table[i[0]][2] = time.perf_counter()
+
+
 
     return table
 
