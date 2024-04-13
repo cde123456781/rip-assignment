@@ -6,6 +6,7 @@ Date: 22/04/2024
 import sys
 import socket
 import select
+import time
 
 
 def file_parse(file_name: str):
@@ -123,15 +124,7 @@ def socket_bind(input_ports):
 
     return sockets
 
-'''
-def main_loop(sockets):
-    while True:
-        readable, writable, exceptional = select.select(sockets, [], sockets)
-        
 
-
-
-'''
 def create_packet(router_id, routing_table):
     output_packet = bytearray()
 
@@ -170,13 +163,35 @@ def create_packet(router_id, routing_table):
 
     return output_packet
 
-# def update_routing_table():
-#     return routing_table
-
-# def bellmanford():
+def update_routing_table(sender_router_id, routing_table, rip_entries, outputs):
+    table = routing_table.copy()
 
 
-def packet_parsing(input_packet):
+    if (sender_router_id not in table.keys()):
+        neighbour_cost = 0
+        for i in outputs:
+            if i[2] == sender_router_id:
+                neighbour_cost = i[1]
+
+        if neighbour_cost == 0:
+            #ie. sender is not a neighbour
+            return table
+
+        table[sender_router_id] = [sender_router_id, neighbour_cost]
+
+
+    for i in rip_entries:
+        if i[0] not in table.keys():
+            table[i[0]] = [sender_router_id, i[1] + table[sender_router_id][1]]
+
+        else:
+            current_cost = table[i[0]][1]
+            if current_cost > (table[sender_router_id][1] + i[1]):
+                table[i[0]][1] = table[sender_router_id][1] + i[1]
+
+    return table
+
+def parse_packet(input_packet):
     rip_entries = []
     try:
         packet_len = len(input_packet)
@@ -226,16 +241,41 @@ def packet_parsing(input_packet):
         return None
 
 
+def send_packet(packet, sending_socket, outputs):
+    for i in outputs:
+        sending_socket.sendto(packet, ("127.0.0.1", i[0]))
+
+
+
 def print_routing_table(routing_table):
     print("--------------Routing Table--------------")
     print("  Router ID  |   Next Hop   |    Cost    ")
-    for i in routing_table.keys():
+    for i in routing_table.keys():table[i[0]] = [sender_router_id, i[1] + table[sender_router_id][1]]
         router_id = i
         next_hop = routing_table[i][0]
         cost = routing_table[i][1]
         print("{:^12} | {:^12} | {:^12}".format(router_id, next_hop, cost))
 
     print("-----------------------------------------")
+
+
+def main_loop(sockets, routing_table, outputs):
+    while True:
+        readable, writable, exceptional = select.select(sockets, [], sockets)
+
+        for current_socket in readable:
+            current_packet = current_socket.recvfrom(1024)[0]
+            result = parse_packet(current_packet)
+            if result is not None:
+                sender_router_id = result[0]
+                rip_entries = result[1]
+                routing_table = update_routing_table(sender_router_id, routing_table, rip_entries, outputs)
+        
+        print_routing_table(routing_table)
+
+        
+        
+
 
 
 
@@ -250,7 +290,7 @@ def main():
         sockets = socket_bind(input_ports)
         print(router_id, input_ports, outputs)
         routing_table = dict()
-        routing_table[router_id] = [router_id, 0]
+        routing_table[router_id] = [router_id, 0, ]
 
         # main_loop()
         print_routing_table(routing_table)
