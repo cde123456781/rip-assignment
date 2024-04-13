@@ -166,7 +166,6 @@ def create_packet(router_id, routing_table):
 def update_routing_table(sender_router_id, routing_table, rip_entries, outputs):
     table = routing_table.copy()
 
-
     if (sender_router_id not in table.keys()):
         neighbour_cost = 0
         for i in outputs:
@@ -177,17 +176,18 @@ def update_routing_table(sender_router_id, routing_table, rip_entries, outputs):
             #ie. sender is not a neighbour
             return table
 
-        table[sender_router_id] = [sender_router_id, neighbour_cost]
+        table[sender_router_id] = [sender_router_id, neighbour_cost, time.perf_counter(), time.perf_counter()]
 
 
     for i in rip_entries:
         if i[0] not in table.keys():
-            table[i[0]] = [sender_router_id, i[1] + table[sender_router_id][1]]
+            table[i[0]] = [sender_router_id, i[1] + table[sender_router_id][1], time.perf_counter(), time.perf_counter()]
 
         else:
             current_cost = table[i[0]][1]
             if current_cost > (table[sender_router_id][1] + i[1]):
                 table[i[0]][1] = table[sender_router_id][1] + i[1]
+                table[i[0]][2] = time.perf_counter()
 
     return table
 
@@ -197,40 +197,47 @@ def parse_packet(input_packet):
         packet_len = len(input_packet)
 
         # Check header 
-        if not (input_packet[0] == 2 and input_packet[1] == 2:
+        if not (input_packet[0] == 2 and input_packet[1] == 2):
             return None
 
-        sender_router_id = input_packet[2] << 8 + input_packet[3]
+        sender_router_id = (input_packet[2] << 8) + input_packet[3]
+
 
         if (sender_router_id > 64000 or sender_router_id < 1):
             return None
         
-        
         if (packet_len-4) % 20 != 0:
             return None
         
-        for i in range((packet_len - 4) / 20):
+        for i in range((packet_len - 4) // 20):
+
             if not (input_packet[(20*i)+4] == 0 and input_packet[(20*i)+5] == 2):
                 return None
+
             
             if not (input_packet[(20*i)+6] == 0 and input_packet[(20*i)+7] == 0):
-                None
+                return None
             
             router_id = input_packet[(20*i)+8] << 24 + input_packet[(20*i)+9] << 16 + input_packet[(20*i)+10] << 8 + input_packet[(20*i)+11]
             if not (router_id <= 64000 or router_id >= 1):
                 return None
+
             
             if not (input_packet[(20*i)+12] == 0 and input_packet[(20*i)+13] == 0 and input_packet[(20*i)+14] == 0 and input_packet[(20*i)+15] == 0):
                 return None
+
+   
             
             if not (input_packet[(20*i)+16] == 0 and input_packet[(20*i)+17] == 0 and input_packet[(20*i)+18] == 0 and input_packet[(20*i)+19] == 0):
                 return None
+
                                         
             metric = input_packet[(20*i)+20] << 24 + input_packet[(20*i)+21] << 16 + input_packet[(20*i)+22] << 8 + input_packet[(20*i)+23]
             if metric > 0:
                 if metric > 16: 
                     metric = 16
-            rip_entries.append([router_id, metric])
+            rip_entries.append([router_id, metric, time.perf_counter(), time.perf_counter()])
+
         
         return (sender_router_id, rip_entries)
         
@@ -248,32 +255,45 @@ def send_packet(packet, sending_socket, outputs):
 
 
 def print_routing_table(routing_table):
-    print("--------------Routing Table--------------")
-    print("  Router ID  |   Next Hop   |    Cost    ")
-    for i in routing_table.keys():table[i[0]] = [sender_router_id, i[1] + table[sender_router_id][1]]
+    print("--------------Routing Table------------------------------------------------")
+    print("  Router ID  |   Next Hop   |    Cost    |   Timeout  |    Garbage Time")
+    for i in routing_table.keys():
         router_id = i
         next_hop = routing_table[i][0]
         cost = routing_table[i][1]
-        print("{:^12} | {:^12} | {:^12}".format(router_id, next_hop, cost))
+        timeout = time.perf_counter() - routing_table[i][2]
+        garbage_time = time.perf_counter() - routing_table[i][3]
+        print("{:^12} | {:^12} | {:^10} | {:^10.2f} | {:^15.2f}".format(router_id, next_hop, cost, timeout, garbage_time))
 
-    print("-----------------------------------------")
+    print("---------------------------------------------------------------------------")
 
 
-def main_loop(sockets, routing_table, outputs):
+def main_loop(sockets, routing_table, router_id, outputs):
+    table = routing_table.copy()
+    print_routing_table(table)
     while True:
-        readable, writable, exceptional = select.select(sockets, [], sockets)
-
+        readable, writable, exceptional = select.select(sockets, [], sockets, 4)
+        print(readable)
         for current_socket in readable:
             current_packet = current_socket.recvfrom(1024)[0]
+            print(current_packet)
             result = parse_packet(current_packet)
+            print(result)
             if result is not None:
                 sender_router_id = result[0]
                 rip_entries = result[1]
-                routing_table = update_routing_table(sender_router_id, routing_table, rip_entries, outputs)
+                table = update_routing_table(sender_router_id, table, rip_entries, outputs)
         
-        print_routing_table(routing_table)
+        print_routing_table(table)
 
-        
+        if time.perf_counter() - table[router_id][2] >= 10:
+            packet = create_packet(router_id, table)
+            send_packet(packet, sockets[0], outputs)
+            table[router_id][2] = time.perf_counter()
+
+
+
+
         
 
 
@@ -290,10 +310,9 @@ def main():
         sockets = socket_bind(input_ports)
         print(router_id, input_ports, outputs)
         routing_table = dict()
-        routing_table[router_id] = [router_id, 0, ]
+        routing_table[router_id] = [router_id, 0, time.perf_counter(), time.perf_counter()]
 
-        # main_loop()
-        print_routing_table(routing_table)
+        main_loop(sockets, routing_table, router_id, outputs)
 
 
 
