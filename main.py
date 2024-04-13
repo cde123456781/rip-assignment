@@ -108,7 +108,8 @@ def file_parse(file_name: str):
             missing_params.append("router-id")
         if not input_ports:
             missing_params.append("input-ports")
-        if not outputs:
+        if not outputs:    print(table.keys())
+    print(rip_entries)
             missing_params.append("outputs")
         
         print("Missing params: {}".format(missing_params))
@@ -166,6 +167,7 @@ def create_packet(router_id, routing_table):
 def update_routing_table(sender_router_id, routing_table, rip_entries, outputs):
     table = routing_table.copy()
 
+
     if (sender_router_id not in table.keys()):
         neighbour_cost = 0
         for i in outputs:
@@ -218,7 +220,7 @@ def parse_packet(input_packet):
             if not (input_packet[(20*i)+6] == 0 and input_packet[(20*i)+7] == 0):
                 return None
             
-            router_id = input_packet[(20*i)+8] << 24 + input_packet[(20*i)+9] << 16 + input_packet[(20*i)+10] << 8 + input_packet[(20*i)+11]
+            router_id = (input_packet[(20*i)+8] << 24) + (input_packet[(20*i)+9] << 16) + (input_packet[(20*i)+10] << 8) + input_packet[(20*i)+11]
             if not (router_id <= 64000 or router_id >= 1):
                 return None
 
@@ -232,11 +234,11 @@ def parse_packet(input_packet):
                 return None
 
                                         
-            metric = input_packet[(20*i)+20] << 24 + input_packet[(20*i)+21] << 16 + input_packet[(20*i)+22] << 8 + input_packet[(20*i)+23]
+            metric = (input_packet[(20*i)+20] << 24) + (input_packet[(20*i)+21] << 16) + (input_packet[(20*i)+22] << 8) + input_packet[(20*i)+23]
             if metric > 0:
                 if metric > 16: 
                     metric = 16
-            rip_entries.append([router_id, metric, time.perf_counter(), time.perf_counter()])
+            rip_entries.append([router_id, metric])
 
         
         return (sender_router_id, rip_entries)
@@ -273,12 +275,9 @@ def main_loop(sockets, routing_table, router_id, outputs):
     print_routing_table(table)
     while True:
         readable, writable, exceptional = select.select(sockets, [], sockets, 4)
-        print(readable)
         for current_socket in readable:
             current_packet = current_socket.recvfrom(1024)[0]
-            print(current_packet)
             result = parse_packet(current_packet)
-            print(result)
             if result is not None:
                 sender_router_id = result[0]
                 rip_entries = result[1]
@@ -308,7 +307,6 @@ def main():
         file_name = sys.argv[1]
         router_id, input_ports, outputs = file_parse(file_name)
         sockets = socket_bind(input_ports)
-        print(router_id, input_ports, outputs)
         routing_table = dict()
         routing_table[router_id] = [router_id, 0, time.perf_counter(), time.perf_counter()]
 
