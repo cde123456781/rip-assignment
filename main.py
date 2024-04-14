@@ -149,8 +149,8 @@ def socket_bind(input_ports):
     return sockets
 
 
-def create_packet(router_id, routing_table):
-    """Creates a packet based on the router-id and routing table entries of a router"""
+def create_packet(router_id, routing_table, recipient_id):
+    """Creates a packet based on the router-id, routing table entries of a router, and the recipient router-id"""
     output_packet = bytearray()
 
     # Command = 2 for response, Version = RIPv2
@@ -161,7 +161,7 @@ def create_packet(router_id, routing_table):
     output_packet.append(router_id >> 8)
     output_packet.append(router_id - ((router_id >> 8) << 8))
 
-    
+    # Goes through each router-id in the routing table
     for i in routing_table.keys():
 
         # Each RIP entry needs to have 2 for AFI (for IP) followed by 2 zero bytes
@@ -183,14 +183,20 @@ def create_packet(router_id, routing_table):
         # metric of the entry
         for j in range(3):
             output_packet.append(0)
-        output_packet.append(routing_table[i][1])
+
+        # Poisoned Reverse if the next hop for this entry is through the recipient router
+        if routing_table[i][0] == recipient_id:
+             output_packet.append(16)
+        else:
+            output_packet.append(routing_table[i][1])
 
     return output_packet
 
 def update_routing_table(sender_router_id, routing_table, rip_entries, outputs, sockets, router_id):
+    """Updates the routing table using the RIP entries provided from a packet"""
     table = routing_table.copy()
 
-
+    # If the router's table doesn't have an entry for this neighbour
     if (sender_router_id not in table.keys()):
         neighbour_cost = 0
         for i in outputs:
@@ -204,37 +210,56 @@ def update_routing_table(sender_router_id, routing_table, rip_entries, outputs, 
         table[sender_router_id] = [sender_router_id, neighbour_cost, time.perf_counter(), time.perf_counter(), False]
 
     for i in rip_entries:
+        # If routing table doesn't have this entry and the cost is less than 16
         if i[0] not in table.keys() and i[1] < 16:
             table[i[0]] = [sender_router_id, i[1] + table[sender_router_id][1], time.perf_counter(), time.perf_counter(), False]
-        elif i[0] not in table.keys() and i[1] >= 16:
+
+        # If routing table doesn't have this entry but the cost is greater than or equal to 16 or the entry refers to itself
+        elif (i[0] not in table.keys() and i[1] >= 16) or (i[0] == router_id):
             continue
-        elif i[0] == router_id:
-            continue
-        elif i[1] >= 16:
-            if table[i[0]][1] < 16:
-                table[i[0]][1] = 16
-                table[i[0]][2] = time.perf_counter()
-                packet = create_packet(router_id, table)
-                send_packet(packet, sockets[0], outputs)
                 
         else:
             current_cost = table[i[0]][1]
-            current_output = None
+            metric = None
             for j in outputs:
                 if j[2] == sender_router_id:
-                    current_output = j[1]
-            if current_output == None:
+                    metric = j[1]
+            if metric == None:
                 return table
-            if current_cost > (current_output + i[1]):
+            
+            # If the router gets an update from the next hop router, it accepts it no matter what
+            if routing_table[i[0]][0] == sender_router_id:
+                # If the garbage collection flag is set
+                if table[i[0]][4]:
+                    table[i[0]][1] = metric + i[1]
+                    table[i[0]][2] = time.perf_counter()
+                    if table[i[0]][1] >= 16:
+                        table[i[0]][1] = 16
+                    else:
+                        table[i[0]][4] = False
+                
+                else:
+                    table[i[0]][1] = metric + i[1]
+                    table[i[0]][2] = time.perf_counter()
+
+                    # Route is infinity; start garbage collection
+                    if table[i[0]][1] >= 16:
+                        table[i[0]][1] = 16
+                        table[i[0]][3] = True
+                        table[i[0]][3] = time.perf_counter()
+
+                        # Create and send triggered update
+                        for i in outputs:
+                            packet = create_packet(router_id, table, i[2])
+                            send_packet(packet, sockets[0], i[0])
+
+            # If the new cost is better and is less than 16
+            elif current_cost > (metric + i[1]) and (metric + i[1]) < 16:
                 table[i[0]][0] = sender_router_id
-                table[i[0]][1] = current_output + i[1]
+                table[i[0]][1] = metric + i[1]
                 table[i[0]][2] = time.perf_counter()
-                if current_output + i[1] < 16:
-                    table[i[0]][4] = False
-            elif current_cost == (current_output + i[1]):
-                table[i[0]][2] = time.perf_counter()
-                if current_cost < 16:
-                    table[i[0]][4] = False
+                table[i[0]][4] = False
+
 
     return table
 
@@ -291,17 +316,14 @@ def parse_packet(input_packet):
         
         return (sender_router_id, rip_entries)
         
-
-
     
     except: 
         return None
 
 
-def send_packet(packet, sending_socket, outputs):
-    """Sends a packet to each output port"""
-    for i in outputs:
-        sending_socket.sendto(packet, ("127.0.0.1", i[0]))
+def send_packet(packet, sending_socket, port):
+    """Sends a packet to the specifed port"""
+    sending_socket.sendto(packet, ("127.0.0.1", port))
 
 
 
@@ -333,6 +355,8 @@ def main_loop(sockets, routing_table, router_id, outputs, timers):
     while True:
         
         readable, writable, exceptional = select.select(sockets, [], sockets, 0.5)
+
+        # When a packet is received on a socket 
         for current_socket in readable:
             current_packet = current_socket.recvfrom(1024)[0]
             result = parse_packet(current_packet)
@@ -341,29 +365,39 @@ def main_loop(sockets, routing_table, router_id, outputs, timers):
                 rip_entries = result[1]
                 table = update_routing_table(sender_router_id, table, rip_entries, outputs, sockets, router_id)
                 print_routing_table(table)
-        packet = create_packet(router_id, table)
 
+
+
+        # If it is time for a periodic update
         if time.perf_counter() - table[router_id][2] >= (random.uniform(0.8, 1.2) * timers[0]):
-            
-            send_packet(packet, sockets[0], outputs)
+            for i in outputs:
+                packet = create_packet(router_id, table, i[2])
+                send_packet(packet, sockets[0], i[0])
             table[router_id][2] = time.perf_counter()
         
         garbage_values = []
 
         for entry in table.keys():
+            # If the entry is not itself
             if entry != router_id:
-                if (time.perf_counter() - table[entry][2] >= timers[1] or table[entry][1] >= 16) and not table[entry][4]:
+
+                # If the timeout timer has been exceeded and the garbage collection flag is not on
+                if (time.perf_counter() - table[entry][2] >= timers[1]) and not table[entry][4]:
                     table[entry][4] = True
                     table[entry][3] = time.perf_counter()
                     table[entry][1] = 16
-                    send_packet(packet, sockets[0], outputs) #Triggered update
+                    for i in outputs:
+                        packet = create_packet(router_id, table, i[2])
+                        send_packet(packet, sockets[0], i[0]) #Triggered update
+
+                # If the garbage collection flag is on and the timer has been exceeded
                 if time.perf_counter() - table[entry][3] >= timers[2] and table[entry][4]:
-                    send_packet(packet, sockets[0], outputs)
-                    if table[entry][1] >= 16:
-                        garbage_values.append(entry)
+                    garbage_values.append(entry)
                     
         for garbage in garbage_values:
             table.pop(garbage)
+        
+        # If an entry has been deleted, print the resulting routing table
         if len(garbage_values) > 0:
             print_routing_table(table)
 
