@@ -84,6 +84,9 @@ def file_parse(file_name: str):
                 if current_triple[0] > 64000 or current_triple[0] < 1024:
                     print("Output port out of range")
                     exit()
+                if current_triple[1] < 1 or current_triple[1] > 15:
+                    print("Metric out of range")
+                    exit()
                 if current_triple[2] > 64000 or current_triple[2] < 1:
                     print("Output router-id out of range")
                     exit()
