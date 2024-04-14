@@ -7,6 +7,7 @@ import sys
 import socket
 import select
 import time
+import random
 
 
 def file_parse(file_name: str):
@@ -14,6 +15,7 @@ def file_parse(file_name: str):
     router_id = None
     input_ports = []
     outputs = []
+    timers_output = None
     try:
         file = open(file_name, "r")
         line = file.readline()
@@ -93,6 +95,20 @@ def file_parse(file_name: str):
                     exit()
 
                 outputs.append(current_triple)
+
+        elif "timers" in line:
+            timers_string = line.split(" ", 1)[1]
+
+            try:
+                timers_string = int(timers_string)
+            except:
+                print("Provided outputs must be integers")
+                exit()
+            
+            timers_output = [timers_string, timers_string*6, timers_string*4]
+
+
+
                            
         line = file.readline()
 
@@ -100,7 +116,7 @@ def file_parse(file_name: str):
     file.close()
 
     if router_id is not None and input_ports and outputs:
-        return (router_id, input_ports, outputs)
+        return (router_id, input_ports, outputs, timers_output)
 
     else:
         missing_params = []
@@ -163,7 +179,7 @@ def create_packet(router_id, routing_table):
 
     return output_packet
 
-def update_routing_table(sender_router_id, routing_table, rip_entries, outputs):
+def update_routing_table(sender_router_id, routing_table, rip_entries, outputs, sockets, router_id):
     table = routing_table.copy()
 
 
@@ -179,23 +195,37 @@ def update_routing_table(sender_router_id, routing_table, rip_entries, outputs):
 
         table[sender_router_id] = [sender_router_id, neighbour_cost, time.perf_counter(), time.perf_counter(), False]
 
-    print(sender_router_id)
-    print(rip_entries)
     for i in rip_entries:
-        if i[0] not in table.keys():
+        if i[0] not in table.keys() and i[1] < 16:
             table[i[0]] = [sender_router_id, i[1] + table[sender_router_id][1], time.perf_counter(), time.perf_counter(), False]
-
+        elif i[0] not in table.keys() and i[1] >= 16:
+            continue
+        elif table[i[0]][0] == sender_router_id and i[1] >= 16:
+            if table[i[0]][1] < 16:
+                table[i[0]][1] = 16
+                table[i[0]][2] = time.perf_counter()
+                packet = create_packet(router_id, table)
+                send_packet(packet, sockets[0], outputs)
+                
         else:
             current_cost = table[i[0]][1]
             print("{}: {} - {}".format(i[0], current_cost, (table[sender_router_id][1] +i[1])))
-            if current_cost > (table[sender_router_id][1] + i[1]):
+            current_output = None
+            for j in outputs:
+                if j[2] == sender_router_id:
+                    current_output = j[1]
+            if current_output == None:
+                return table
+            if current_cost > (current_output + i[1]):
                 table[i[0]][0] = sender_router_id
-                table[i[0]][1] = table[sender_router_id][1] + i[1]
+                table[i[0]][1] = current_output + i[1]
                 table[i[0]][2] = time.perf_counter()
-            elif current_cost == (table[sender_router_id][1] + i[1]):
+                if current_output + i[1] < 16:
+                    table[i[0]][4] = False
+            elif current_cost == (current_output + i[1]):
                 table[i[0]][2] = time.perf_counter()
-
-
+                if current_cost < 16:
+                    table[i[0]][4] = False
 
     return table
 
@@ -212,7 +242,7 @@ def parse_packet(input_packet):
 
 
         if (sender_router_id > 64000 or sender_router_id < 1):
--            return None
+            return None
 
 
         
@@ -265,7 +295,7 @@ def send_packet(packet, sending_socket, outputs):
 
 
 def print_routing_table(routing_table):
-    print("--------------Routing Table------------------------------------------------")
+    print("--------------------------------Routing Table------------------------------")
     print("  Router ID  |   Next Hop   |    Cost    |   Timeout  |    Garbage Time")
     for i in routing_table.keys():
         router_id = i
@@ -274,33 +304,35 @@ def print_routing_table(routing_table):
         timeout = time.perf_counter() - routing_table[i][2]
         garbage_time = time.perf_counter() - routing_table[i][3]
         flag = routing_table[i][4]
+
+        print("{} {}".format(timeout, garbage_time))
         if flag:
-            print("{:^12} | {:^12} | {:^10} | {:^10.2f} | {:^15.2f}".format(router_id, next_hop, cost, timeout, garbage_time))
+            print("{:^12} | {:^12} | {:^10} | {:^10.2f} | {:^15.2f}".format(router_id, next_hop, cost, 0, garbage_time))
         else: 
             print("{:^12} | {:^12} | {:^10} | {:^10.2f} | {:^15.2f}".format(router_id, next_hop, cost, timeout, 0))
 
     print("---------------------------------------------------------------------------")
 
 
-def main_loop(sockets, routing_table, router_id, outputs):
+def main_loop(sockets, routing_table, router_id, outputs, timers):
 
     table = routing_table.copy()
     print_routing_table(table)
     while True:
         
-        readable, writable, exceptional = select.select(sockets, [], sockets, 4)
+        readable, writable, exceptional = select.select(sockets, [], sockets, 2)
         for current_socket in readable:
             current_packet = current_socket.recvfrom(1024)[0]
             result = parse_packet(current_packet)
             if result is not None:
                 sender_router_id = result[0]
                 rip_entries = result[1]
-                table = update_routing_table(sender_router_id, table, rip_entries, outputs)
-        
-        print_routing_table(table)
+                table = update_routing_table(sender_router_id, table, rip_entries, outputs, sockets, router_id)
+                print_routing_table(table)
+        packet = create_packet(router_id, table)
 
-        if time.perf_counter() - table[router_id][2] >= 10:
-            packet = create_packet(router_id, table)
+        if time.perf_counter() - table[router_id][2] >= (random.uniform(0.8, 1.2) * timers[0]):
+            
             send_packet(packet, sockets[0], outputs)
             table[router_id][2] = time.perf_counter()
         
@@ -308,26 +340,18 @@ def main_loop(sockets, routing_table, router_id, outputs):
 
         for entry in table.keys():
             if entry != router_id:
-                if time.perf_counter() - table[entry][2] >= 20 and not table[entry][4]:
+                if (time.perf_counter() - table[entry][2] >= timers[1] or table[entry][1] >= 16) and not table[entry][4]:
                     table[entry][4] = True
                     table[entry][3] = time.perf_counter()
                     table[entry][1] = 16
                     send_packet(packet, sockets[0], outputs) #Triggered update
-                if time.perf_counter() - table[entry][3] >= 10 and table[entry][4]:
-                    table[entry][1] = 16
+                if time.perf_counter() - table[entry][3] >= timers[2] and table[entry][4]:
                     send_packet(packet, sockets[0], outputs)
-                if table[entry][1] == 16:
-                    garbage_values.append(entry)
+                    if table[entry][1] >= 16:
+                        garbage_values.append(entry)
                     
         for garbage in garbage_values:
             table.pop(garbage)
-
-
-
-        
-
-
-
 
 def main():
     if len(sys.argv) > 2:
@@ -336,12 +360,14 @@ def main():
         print("This program requires the file name as an argument")
     else:
         file_name = sys.argv[1]
-        router_id, input_ports, outputs = file_parse(file_name)
+        router_id, input_ports, outputs, timers = file_parse(file_name)
+        if timers == None:
+            timers = [5, 10, 20]
         sockets = socket_bind(input_ports)
         routing_table = dict()
         routing_table[router_id] = [router_id, 0, time.perf_counter(), time.perf_counter(), False]
 
-        main_loop(sockets, routing_table, router_id, outputs)
+        main_loop(sockets, routing_table, router_id, outputs, timers)
 
 
 
