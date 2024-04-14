@@ -138,6 +138,7 @@ def file_parse(file_name: str):
         exit()
 
 def socket_bind(input_ports):
+    """Binds a socket to each input port and returns them in a list"""
     sockets = []
 
     for i in input_ports:
@@ -149,19 +150,21 @@ def socket_bind(input_ports):
 
 
 def create_packet(router_id, routing_table):
+    """Creates a packet based on the router-id and routing table entries of a router"""
     output_packet = bytearray()
 
+    # Command = 2 for response, Version = RIPv2
     output_packet.append(2)
     output_packet.append(2)
 
-    if router_id > 255:
-        output_packet.append(router_id >> 8)
-        output_packet.append(router_id - ((router_id >> 8) << 8))
-    else:
-        output_packet.append(0)
-        output_packet.append(router_id) 
+    # Bitshift operations on the router-id field
+    output_packet.append(router_id >> 8)
+    output_packet.append(router_id - ((router_id >> 8) << 8))
+
     
     for i in routing_table.keys():
+
+        # Each RIP entry needs to have 2 for AFI (for IP) followed by 2 zero bytes
         output_packet.append(0)
         output_packet.append(2)
         output_packet.append(0)
@@ -173,15 +176,13 @@ def create_packet(router_id, routing_table):
         output_packet.append(i >> 8)
         output_packet.append(i - ((i >> 8) << 8))
 
-
+        # 8 zero bytes
         for j in range(8):
             output_packet.append(0)
         
         # metric of the entry
-
         for j in range(3):
             output_packet.append(0)
-
         output_packet.append(routing_table[i][1])
 
     return output_packet
@@ -238,16 +239,17 @@ def update_routing_table(sender_router_id, routing_table, rip_entries, outputs, 
     return table
 
 def parse_packet(input_packet):
+    """Parses the packet provided, ensuring that all its fields are valid, and extracting the RIP entries as [router-id, metric] pairs"""
     rip_entries = []
     try:
         packet_len = len(input_packet)
 
-        # Check header 
+        # Check command and version fields 
         if not (input_packet[0] == 2 and input_packet[1] == 2):
             return None
 
+        # Extract the sender's router-id and checks if it is within range
         sender_router_id = (input_packet[2] << 8) + input_packet[3]
-
 
         if (sender_router_id > 64000 or sender_router_id < 1):
             return None
@@ -259,27 +261,27 @@ def parse_packet(input_packet):
         
         for i in range((packet_len - 4) // 20):
 
+            # AFI must be 2 for IP
             if not (input_packet[(20*i)+4] == 0 and input_packet[(20*i)+5] == 2):
                 return None
 
-            
+            # Zero bytes
             if not (input_packet[(20*i)+6] == 0 and input_packet[(20*i)+7] == 0):
                 return None
             
+            # Extract router-id and check if it is within range
             router_id = (input_packet[(20*i)+8] << 24) + (input_packet[(20*i)+9] << 16) + (input_packet[(20*i)+10] << 8) + input_packet[(20*i)+11]
             if not (router_id <= 64000 or router_id >= 1):
                 return None
 
-            
+            # Check if there are 8 zero bytes
             if not (input_packet[(20*i)+12] == 0 and input_packet[(20*i)+13] == 0 and input_packet[(20*i)+14] == 0 and input_packet[(20*i)+15] == 0):
                 return None
 
-   
-            
             if not (input_packet[(20*i)+16] == 0 and input_packet[(20*i)+17] == 0 and input_packet[(20*i)+18] == 0 and input_packet[(20*i)+19] == 0):
                 return None
 
-                                        
+            # Extract metric                           
             metric = (input_packet[(20*i)+20] << 24) + (input_packet[(20*i)+21] << 16) + (input_packet[(20*i)+22] << 8) + input_packet[(20*i)+23]
             if metric > 0:
                 if metric > 16: 
@@ -297,12 +299,14 @@ def parse_packet(input_packet):
 
 
 def send_packet(packet, sending_socket, outputs):
+    """Sends a packet to each output port"""
     for i in outputs:
         sending_socket.sendto(packet, ("127.0.0.1", i[0]))
 
 
 
 def print_routing_table(routing_table):
+    """Displays the routing table in a human-readable format"""
     print("--------------------------------Routing Table------------------------------")
     print("  Router ID  |   Next Hop   |    Cost    |   Timeout  |    Garbage Time")
     for i in routing_table.keys():
@@ -313,6 +317,7 @@ def print_routing_table(routing_table):
         garbage_time = time.perf_counter() - routing_table[i][3]
         flag = routing_table[i][4]
 
+        # If the flag for garbage collection is True, display the garbage-timer and not the timeout-timer
         if flag:
             print("{:^12} | {:^12} | {:^10} | {:^10.2f} | {:^15.2f}".format(router_id, next_hop, cost, 0, garbage_time))
         else: 
@@ -322,7 +327,7 @@ def print_routing_table(routing_table):
 
 
 def main_loop(sockets, routing_table, router_id, outputs, timers):
-
+    """The main loop which runs after the router configs have been set up."""
     table = routing_table.copy()
     print_routing_table(table)
     while True:
