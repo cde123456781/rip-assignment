@@ -104,6 +104,9 @@ def file_parse(file_name: str):
             except:
                 print("Provided outputs must be integers")
                 exit()
+            if timers_string <= 0:
+                print("Timer must be positive")
+                exit()
             
             timers_output = [timers_string, timers_string*6, timers_string*4]
 
@@ -116,6 +119,10 @@ def file_parse(file_name: str):
     file.close()
 
     if router_id is not None and input_ports and outputs:
+        for i in outputs:
+            if i[0] in input_ports:
+                print("Output port cnanot be in input ports")
+                exit()
         return (router_id, input_ports, outputs, timers_output)
 
     else:
@@ -200,7 +207,9 @@ def update_routing_table(sender_router_id, routing_table, rip_entries, outputs, 
             table[i[0]] = [sender_router_id, i[1] + table[sender_router_id][1], time.perf_counter(), time.perf_counter(), False]
         elif i[0] not in table.keys() and i[1] >= 16:
             continue
-        elif table[i[0]][0] == sender_router_id and i[1] >= 16:
+        elif i[0] == router_id:
+            continue
+        elif i[1] >= 16:
             if table[i[0]][1] < 16:
                 table[i[0]][1] = 16
                 table[i[0]][2] = time.perf_counter()
@@ -209,7 +218,6 @@ def update_routing_table(sender_router_id, routing_table, rip_entries, outputs, 
                 
         else:
             current_cost = table[i[0]][1]
-            print("{}: {} - {}".format(i[0], current_cost, (table[sender_router_id][1] +i[1])))
             current_output = None
             for j in outputs:
                 if j[2] == sender_router_id:
@@ -305,7 +313,6 @@ def print_routing_table(routing_table):
         garbage_time = time.perf_counter() - routing_table[i][3]
         flag = routing_table[i][4]
 
-        print("{} {}".format(timeout, garbage_time))
         if flag:
             print("{:^12} | {:^12} | {:^10} | {:^10.2f} | {:^15.2f}".format(router_id, next_hop, cost, 0, garbage_time))
         else: 
@@ -320,7 +327,7 @@ def main_loop(sockets, routing_table, router_id, outputs, timers):
     print_routing_table(table)
     while True:
         
-        readable, writable, exceptional = select.select(sockets, [], sockets, 2)
+        readable, writable, exceptional = select.select(sockets, [], sockets, 0.5)
         for current_socket in readable:
             current_packet = current_socket.recvfrom(1024)[0]
             result = parse_packet(current_packet)
@@ -352,6 +359,8 @@ def main_loop(sockets, routing_table, router_id, outputs, timers):
                     
         for garbage in garbage_values:
             table.pop(garbage)
+        if len(garbage_values) > 0:
+            print_routing_table(table)
 
 def main():
     if len(sys.argv) > 2:
@@ -362,7 +371,7 @@ def main():
         file_name = sys.argv[1]
         router_id, input_ports, outputs, timers = file_parse(file_name)
         if timers == None:
-            timers = [5, 10, 20]
+            timers = [5, 30, 20]
         sockets = socket_bind(input_ports)
         routing_table = dict()
         routing_table[router_id] = [router_id, 0, time.perf_counter(), time.perf_counter(), False]
