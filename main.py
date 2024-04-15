@@ -1,6 +1,6 @@
 """
 Title: Rip Assignment 2024
-Author: Byrson Chen (32687456) Luke Morimoto (33883343)
+Author: Byrson Chen (32687456) | Luke Morimoto (33883343)
 Date: 22/04/2024
 """
 import sys
@@ -114,7 +114,6 @@ def file_parse(file_name: str):
             timers_output = [timers_string, timers_string*6, timers_string*4]
 
 
-
                            
         line = file.readline()
 
@@ -124,7 +123,7 @@ def file_parse(file_name: str):
     if router_id is not None and input_ports and outputs:
         for i in outputs:
             if i[0] in input_ports:
-                print("Output port cnanot be in input ports")
+                print("Output port cannot be in input ports")
                 exit()
         return (router_id, input_ports, outputs, timers_output)
 
@@ -231,7 +230,8 @@ def update_routing_table(sender_router_id, routing_table, rip_entries, outputs, 
                 return table
             
             # If the router gets an update from the next hop router, it accepts it no matter what
-            if routing_table[i[0]][0] == sender_router_id:
+            if table[i[0]] == sender_router_id:
+
                 # If the garbage collection flag is set
                 if table[i[0]][4]:
                     table[i[0]][1] = metric + i[1]
@@ -281,7 +281,6 @@ def parse_packet(input_packet):
 
         if (sender_router_id > 64000 or sender_router_id < 1):
             return None
-
 
         
         if (packet_len-4) % 20 != 0:
@@ -370,7 +369,6 @@ def main_loop(sockets, routing_table, router_id, outputs, timers):
                 print_routing_table(table)
 
 
-
         # If it is time for a periodic update
         if time.perf_counter() - table[router_id][2] >= (random.uniform(0.8, 1.2) * timers[0]):
             for i in outputs:
@@ -407,15 +405,18 @@ def main_loop(sockets, routing_table, router_id, outputs, timers):
 def main():
     if len(sys.argv) > 2:
         print("This program only accepts 1 argument: The file name")
+
     elif len(sys.argv) == 1:
         print("This program requires the file name as an argument")
+
     else:
         file_name = sys.argv[1]
         router_id, input_ports, outputs, timers = file_parse(file_name)
         if timers == None:
             timers = [5, 30, 20]
         sockets = socket_bind(input_ports)
-        routing_table = dict()
+        
+        routing_table = dict() 
         routing_table[router_id] = [router_id, 0, time.perf_counter(), time.perf_counter(), False]
 
         main_loop(sockets, routing_table, router_id, outputs, timers)
