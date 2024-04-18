@@ -346,7 +346,7 @@ def print_routing_table(routing_table, router_id):
         # If the flag for garbage collection is True, display the garbage-timer and not the timeout-timer
         if i != router_id:
             if flag:
-                print("{:^12} | {:^12} | {:^10} | {:^10.2f} | {:^15.2f}".format(curent_router_id, next_hop, cost, 0, garbage_time))
+                print("{:^12} | {:^12} | {:^10} | {:^10.2f} | {:^15.2f}".format(current_router_id, next_hop, cost, 0, garbage_time))
             else: 
                 print("{:^12} | {:^12} | {:^10} | {:^10.2f} | {:^15.2f}".format(current_router_id, next_hop, cost, timeout, 0))
 
