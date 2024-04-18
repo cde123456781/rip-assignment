@@ -285,34 +285,36 @@ def parse_packet(input_packet):
         
         if (packet_len-4) % 20 != 0:
             return None
+
+        if packet_len > 25 * 20 + 4: 
+            return None
         
         for i in range((packet_len - 4) // 20):
 
             # AFI must be 2 for IP
             if not (input_packet[(20*i)+4] == 0 and input_packet[(20*i)+5] == 2):
-                return None
+                continue
 
             # Zero bytes
             if not (input_packet[(20*i)+6] == 0 and input_packet[(20*i)+7] == 0):
-                return None
+                continue
             
             # Extract router-id and check if it is within range
             router_id = (input_packet[(20*i)+8] << 24) + (input_packet[(20*i)+9] << 16) + (input_packet[(20*i)+10] << 8) + input_packet[(20*i)+11]
             if not (router_id <= 64000 or router_id >= 1):
-                return None
+                continue
 
             # Check if there are 8 zero bytes
             if not (input_packet[(20*i)+12] == 0 and input_packet[(20*i)+13] == 0 and input_packet[(20*i)+14] == 0 and input_packet[(20*i)+15] == 0):
-                return None
+                continue
 
             if not (input_packet[(20*i)+16] == 0 and input_packet[(20*i)+17] == 0 and input_packet[(20*i)+18] == 0 and input_packet[(20*i)+19] == 0):
-                return None
+                continue
 
             # Extract metric                           
             metric = (input_packet[(20*i)+20] << 24) + (input_packet[(20*i)+21] << 16) + (input_packet[(20*i)+22] << 8) + input_packet[(20*i)+23]
-            if metric > 0:
-                if metric > 16: 
-                    metric = 16
+            if metric > 16: 
+                metric = 16
             rip_entries.append([router_id, metric])
 
         
@@ -329,12 +331,12 @@ def send_packet(packet, sending_socket, port):
 
 
 
-def print_routing_table(routing_table):
+def print_routing_table(routing_table, router_id):
     """Displays the routing table in a human-readable format"""
-    print("--------------------------------Routing Table------------------------------")
+    print(f"-----------------------------Routing Table {router_id}-------------------------------")
     print("  Router ID  |   Next Hop   |    Cost    |   Timeout  |    Garbage Time")
     for i in routing_table.keys():
-        router_id = i
+        current_router_id = i
         next_hop = routing_table[i][0]
         cost = routing_table[i][1]
         timeout = time.perf_counter() - routing_table[i][2]
@@ -342,10 +344,11 @@ def print_routing_table(routing_table):
         flag = routing_table[i][4]
 
         # If the flag for garbage collection is True, display the garbage-timer and not the timeout-timer
-        if flag:
-            print("{:^12} | {:^12} | {:^10} | {:^10.2f} | {:^15.2f}".format(router_id, next_hop, cost, 0, garbage_time))
-        else: 
-            print("{:^12} | {:^12} | {:^10} | {:^10.2f} | {:^15.2f}".format(router_id, next_hop, cost, timeout, 0))
+        if i != router_id:
+            if flag:
+                print("{:^12} | {:^12} | {:^10} | {:^10.2f} | {:^15.2f}".format(curent_router_id, next_hop, cost, 0, garbage_time))
+            else: 
+                print("{:^12} | {:^12} | {:^10} | {:^10.2f} | {:^15.2f}".format(current_router_id, next_hop, cost, timeout, 0))
 
     print("---------------------------------------------------------------------------")
 
@@ -353,7 +356,7 @@ def print_routing_table(routing_table):
 def main_loop(sockets, routing_table, router_id, outputs, timers):
     """The main loop which runs after the router configs have been set up."""
     table = routing_table.copy()
-    print_routing_table(table)
+    print_routing_table(table, router_id)
     while True:
         
         readable, writable, exceptional = select.select(sockets, [], sockets, 0.5)
@@ -366,7 +369,7 @@ def main_loop(sockets, routing_table, router_id, outputs, timers):
                 sender_router_id = result[0]
                 rip_entries = result[1]
                 table = update_routing_table(sender_router_id, table, rip_entries, outputs, sockets, router_id)
-                print_routing_table(table)
+                print_routing_table(table, router_id)
 
 
         # If it is time for a periodic update
@@ -400,7 +403,7 @@ def main_loop(sockets, routing_table, router_id, outputs, timers):
         
         # If an entry has been deleted, print the resulting routing table
         if len(garbage_values) > 0:
-            print_routing_table(table)
+            print_routing_table(table, router_id)
 
 def main():
     if len(sys.argv) > 2:
