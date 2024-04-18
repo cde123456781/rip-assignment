@@ -188,7 +188,7 @@ def create_packet(router_id, routing_table, recipient_id):
 
         # Poisoned Reverse if the next hop for this entry is through the recipient router
         if routing_table[i][0] == recipient_id:
-             output_packet.append(16)
+            output_packet.append(16)
         else:
             output_packet.append(routing_table[i][1])
 
@@ -218,6 +218,7 @@ def update_routing_table(sender_router_id, routing_table, rip_entries, outputs, 
 
         # If routing table doesn't have this entry but the cost is greater than or equal to 16 or the entry refers to itself
         elif (i[0] not in table.keys() and i[1] >= 16) or (i[0] == router_id):
+
             continue
                 
         else:
@@ -230,7 +231,7 @@ def update_routing_table(sender_router_id, routing_table, rip_entries, outputs, 
                 return table
             
             # If the router gets an update from the next hop router, it accepts it no matter what
-            if table[i[0]] == sender_router_id:
+            if table[i[0]][0] == sender_router_id:
 
                 # If the garbage collection flag is set
                 if table[i[0]][4]:
@@ -248,7 +249,7 @@ def update_routing_table(sender_router_id, routing_table, rip_entries, outputs, 
                     # Route is infinity; start garbage collection
                     if table[i[0]][1] >= 16:
                         table[i[0]][1] = 16
-                        table[i[0]][3] = True
+                        table[i[0]][4] = True
                         table[i[0]][3] = time.perf_counter()
 
                         # Create and send triggered update
@@ -257,11 +258,13 @@ def update_routing_table(sender_router_id, routing_table, rip_entries, outputs, 
                             send_packet(packet, sockets[0], i[0])
 
             # If the new cost is better and is less than 16
+            
             elif current_cost > (metric + i[1]) and (metric + i[1]) < 16:
                 table[i[0]][0] = sender_router_id
                 table[i[0]][1] = metric + i[1]
                 table[i[0]][2] = time.perf_counter()
                 table[i[0]][4] = False
+        
 
 
     return table
