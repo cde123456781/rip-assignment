@@ -135,7 +135,7 @@ def file_parse(file_name: str):
                 else:
                     timers_string = int(timers_string)
             except:
-                print("Provided outputs must be integers")
+                print("Provided timer must be an integer")
                 exit()
             if timers_string <= 0 or timers_string > 30:
                 print("Timer must be positive and less than or equal to 30")
