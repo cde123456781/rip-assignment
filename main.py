@@ -78,6 +78,7 @@ def file_parse(file_name: str):
             outputs_triple = outputs_string.split(",")
 
             outputs_ports_list = []
+            outputs_routers_list = []
             
             for i in outputs_triple:
                 current_triple = i.strip().split("-")
@@ -110,7 +111,16 @@ def file_parse(file_name: str):
                     print("Output ports are not all unique")
                     exit()
 
-                outputs.append(current_triple)
+
+
+                if current_triple[2] not in outputs_routers_list:
+                    outputs_routers_list.append(current_triple[2])
+                    outputs.append(current_triple)
+                else:
+                    # if the current output router-id is in outputs already, replace the current entry if the current triplet's cost is less
+                    for i in range(len(outputs)):
+                        if outputs[i][2] == current_triple[2] and outputs[i][1] > current_triple[1]:
+                            outputs[i] = current_triple
 
         elif "timers" in line:
             try:
