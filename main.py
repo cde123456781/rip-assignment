@@ -30,7 +30,12 @@ def file_parse(file_name: str):
         # Do some parsing
         if "router-id" in line:
             # Eg. Parsing: router-id 1
-            router_id = line.split()[1]
+            try:
+                router_id = line.split()[1]
+            except:
+                print("Error parsing router-id")
+                exit()
+
             if (not router_id.isnumeric()):
                 print("router-id in the config was not an integer")
                 exit()
@@ -49,12 +54,13 @@ def file_parse(file_name: str):
                 exit()
             # Ports all need to be unique and be between 1024 and 64000 inclusive
             input_ports = input_ports_string.split(",")
-            try:
-                for i in range(len(input_ports)):
+
+            for i in range(len(input_ports)):
+                if (not input_ports[i].strip().isnumeric()):
+                    print("Port in the config was not an integer")
+                    exit()
+                else: 
                     input_ports[i] = int(input_ports[i])
-            except:
-                print("Error parsing input ports")
-                exit()
 
             for i in input_ports:
                 if ((i > 64000 or i < 1024) or input_ports.count(i) > 1):
@@ -64,19 +70,26 @@ def file_parse(file_name: str):
         elif "outputs" in line:
             # Holds a string of comma separated outputs
             # Eg. outputs 5000-1-1, 5002-5-4
-            outputs_string = line.split(" ", 1)[1]
+            try:
+                outputs_string = line.split(" ", 1)[1]
+            except:
+                print("Line contains \"outputs\" but none provided")
+                exit()
             outputs_triple = outputs_string.split(",")
 
             outputs_ports_list = []
             
             for i in outputs_triple:
-                current_triple = i.split("-")
+                current_triple = i.strip().split("-")
                 if len(current_triple) != 3:
                     print("Error in outputs")
                     exit()
                 try:
                     for j in range(3):
-                        current_triple[j] = int(current_triple[j])
+                        if (not current_triple[j].isnumeric()):
+                            exit()
+                        else:
+                            current_triple[j] = int(current_triple[j])
                 except:
                     print("Provided outputs must be integers")
                     exit()
@@ -100,16 +113,24 @@ def file_parse(file_name: str):
                 outputs.append(current_triple)
 
         elif "timers" in line:
-            timers_string = line.split(" ", 1)[1]
+            try:
+                timers_string = line.split()[1]
+            except:
+                print("Line contains \"timer\" but no value for the timer")
+                exit()
 
             try:
-                timers_string = int(timers_string)
+                if (not timers_string.isnumeric()):
+                    exit()
+                else:
+                    timers_string = int(timers_string)
             except:
                 print("Provided outputs must be integers")
                 exit()
-            if timers_string <= 0:
-                print("Timer must be positive")
+            if timers_string <= 0 or timers_string > 30:
+                print("Timer must be positive and less than or equal to 30")
                 exit()
+            
             
             timers_output = [timers_string, timers_string*6, timers_string*4]
 
@@ -124,6 +145,9 @@ def file_parse(file_name: str):
         for i in outputs:
             if i[0] in input_ports:
                 print("Output port cannot be in input ports")
+                exit()
+            if i[2] == router_id:
+                print("Output router-id cannot be the same as router-id")
                 exit()
         return (router_id, input_ports, outputs, timers_output)
 
