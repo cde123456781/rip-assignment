@@ -1,6 +1,6 @@
 """
 Title: Rip Assignment 2024
-Author: Byrson Chen (32687456) | Luke Morimoto (33883343)
+Author: Bryson Chen (32687456) | Luke Morimoto (33883343)
 Date: 22/04/2024
 """
 import sys
